@@ -7,8 +7,8 @@ async function listar({ page = 1, limit = 20 }) {
   const [total, data] = await Promise.all([
     prisma.devolucao.count(),
     prisma.devolucao.findMany({
-      include: { emprestimo: true },
-      orderBy: { criadaEm: 'desc' },
+      include: { emprestimo: true, multa: true },
+      orderBy: { devolucao_id: 'desc' },
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit),
     }),
@@ -18,8 +18,8 @@ async function listar({ page = 1, limit = 20 }) {
 
 async function buscarPorId(id) {
   const devolucao = await prisma.devolucao.findUnique({
-    where: { id: Number(id) },
-    include: { emprestimo: { include: { multa: true } } },
+    where: { devolucao_id: Number(id) },
+    include: { emprestimo: true, multa: true },
   });
   if (!devolucao) {
     const err = new Error('Devolução não encontrada.');
@@ -32,8 +32,8 @@ async function buscarPorId(id) {
 
 async function buscarPorEmprestimo(emprestimoId) {
   const devolucao = await prisma.devolucao.findUnique({
-    where: { emprestimoId: Number(emprestimoId) },
-    include: { emprestimo: true },
+    where: { emprestimo_id: Number(emprestimoId) },
+    include: { emprestimo: true, multa: true },
   });
   if (!devolucao) {
     const err = new Error('Nenhuma devolução encontrada para este empréstimo.');
@@ -44,31 +44,32 @@ async function buscarPorEmprestimo(emprestimoId) {
   return devolucao;
 }
 
-async function buscarPorUsuario(usuarioId, { page = 1, limit = 20 }) {
-  const where = { emprestimo: { usuarioId: Number(usuarioId) } };
-  const [total, data] = await Promise.all([
-    prisma.devolucao.count({ where }),
-    prisma.devolucao.findMany({
-      where,
-      include: { emprestimo: true },
-      orderBy: { criadaEm: 'desc' },
-      skip: (Number(page) - 1) * Number(limit),
-      take: Number(limit),
-    }),
-  ]);
-  return { data, meta: { total, page: Number(page), limit: Number(limit) } };
-}
-
-async function registrar({ emprestimoId, dataDevolucao, condicaoLivro }) {
-  if (!emprestimoId || !dataDevolucao || !condicaoLivro) {
-    const err = new Error('emprestimoId, dataDevolucao e condicaoLivro são obrigatórios.');
+/**
+ * Registra uma devolução.
+ * Body esperado: { emprestimoId, dataDevolucao? }
+ *
+ * Fluxo:
+ *  1. Valida empréstimo.
+ *  2. Calcula dias de atraso.
+ *  3. Cria multa (sempre — se sem atraso, valor = 0 e status Cancelada).
+ *  4. Cria devolucao com FK para a multa.
+ *  5. Atualiza status do empréstimo para Devolvido (ou Atrasado se houve atraso).
+ *
+ * Obs.: a tabela devolucao exige multa_id NOT NULL, então criamos a multa
+ * antes da devolucao, mesmo quando não há atraso (valor 0, status Cancelada).
+ */
+async function registrar({ emprestimoId, dataDevolucao }) {
+  if (!emprestimoId) {
+    const err = new Error('emprestimoId é obrigatório.');
     err.statusCode = 400;
     err.code = 'DADOS_INVALIDOS';
     throw err;
   }
 
   return prisma.$transaction(async (tx) => {
-    const emp = await tx.emprestimo.findUnique({ where: { id: Number(emprestimoId) } });
+    const emp = await tx.emprestimo.findUnique({
+      where: { emprestimo_id: Number(emprestimoId) },
+    });
 
     if (!emp) {
       const err = new Error('Empréstimo não encontrado.');
@@ -76,52 +77,50 @@ async function registrar({ emprestimoId, dataDevolucao, condicaoLivro }) {
       err.code = 'EMPRESTIMO_NAO_ENCONTRADO';
       throw err;
     }
-    if (emp.status === 'DEVOLVIDO') {
+    if (emp.emprestimo_status === 'Devolvido') {
       const err = new Error('Este empréstimo já foi devolvido.');
       err.statusCode = 409;
       err.code = 'EMPRESTIMO_JA_DEVOLVIDO';
       throw err;
     }
 
-    await tx.emprestimo.update({ where: { id: emp.id }, data: { status: 'DEVOLVIDO' } });
+    const dataDevDate = dataDevolucao ? new Date(dataDevolucao) : new Date();
+    const prazo       = emp.emprestimo_data_prevista_devolucao;
+    const houve_atraso = dataDevDate > prazo;
+    const diasAtraso   = houve_atraso ? diffDays(dataDevDate, prazo) : 0;
+    const valorMulta   = diasAtraso * VALOR_MULTA_DIA;
 
-    const devolucao = await tx.devolucao.create({
+    // Sempre cria a multa (FK obrigatória na tabela devolucao)
+    const multa = await tx.multa.create({
       data: {
-        emprestimoId:  emp.id,
-        dataDevolucao: new Date(dataDevolucao),
-        condicaoLivro,
+        multa_valor:        valorMulta,
+        multa_status:       houve_atraso ? 'Pendente' : 'Cancelada',
+        multa_data_geracao: new Date(),
       },
     });
 
-    // Gera multa automaticamente se houve atraso
-    const dataDevDate = new Date(dataDevolucao);
-    if (dataDevDate > emp.dataPrazo) {
-      const dias = diffDays(dataDevDate, emp.dataPrazo);
-      await tx.multa.create({
-        data: {
-          emprestimoId: emp.id,
-          diasAtraso:   dias,
-          valor:        dias * VALOR_MULTA_DIA,
-          motivo:       'ATRASO',
-          status:       'PENDENTE',
-        },
-      });
-    }
+    // Cria a devolucao com FK para multa
+    const devolucao = await tx.devolucao.create({
+      data: {
+        emprestimo_id:           emp.emprestimo_id,
+        devolucao_data_devolucao: dataDevDate,
+        devolucao_atraso_dias:   diasAtraso,
+        devolucao_possui_multa:  houve_atraso ? 1 : 0,
+        devolucao_status:        1, // 1 = registrado
+        multa_id:                multa.multa_id,
+      },
+    });
 
-    return devolucao;
+    // Atualiza status do empréstimo
+    await tx.emprestimo.update({
+      where: { emprestimo_id: emp.emprestimo_id },
+      data: {
+        emprestimo_status: houve_atraso ? 'Atrasado' : 'Devolvido',
+      },
+    });
+
+    return { ...devolucao, multa };
   });
 }
 
-async function confirmar(id, { bibliotecarioId, observacao }) {
-  await buscarPorId(id);
-  return prisma.devolucao.update({
-    where: { id: Number(id) },
-    data: {
-      confirmadoPor: bibliotecarioId ? Number(bibliotecarioId) : undefined,
-      observacao:    observacao ?? undefined,
-      confirmadoEm:  new Date(),
-    },
-  });
-}
-
-module.exports = { listar, buscarPorId, buscarPorEmprestimo, buscarPorUsuario, registrar, confirmar };
+module.exports = { listar, buscarPorId, buscarPorEmprestimo, registrar };

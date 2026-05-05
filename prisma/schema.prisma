@@ -7,56 +7,69 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Tabela: emprestimo
 model Emprestimo {
-  id           Int       @id @default(autoincrement())
-  usuarioId    Int
-  livroId      Int
-  exemplarId   Int
-  status       String    @default("ATIVO") // ATIVO | DEVOLVIDO | ATRASADO
-  dataPrazo    DateTime
-  dataCriacao  DateTime  @default(now())
-  atualizadoEm DateTime  @updatedAt
+  emprestimo_id                      Int              @id @default(autoincrement())
+  usuario_id                         Int
+  emprestimo_data_emprestimo         DateTime?        @db.Date
+  emprestimo_data_prevista_devolucao DateTime         @db.Date
+  emprestimo_status                  EmprestimoStatus
 
-  devolucao    Devolucao?
-  multa        Multa?
+  itens     ItemEmprestimo[]
+  devolucao Devolucao?
 
-  @@index([usuarioId])
-  @@index([livroId])
-  @@index([status])
-  @@index([status, dataPrazo])
-  @@index([dataCriacao])
+  @@map("emprestimo")
 }
 
-model Devolucao {
-  id            Int       @id @default(autoincrement())
-  emprestimoId  Int       @unique
-  dataDevolucao DateTime
-  condicaoLivro String    // BOM | DANIFICADO | PERDIDO
-  confirmadoPor Int?
-  observacao    String?   @db.Text
-  confirmadoEm  DateTime?
-  criadaEm      DateTime  @default(now())
-
-  emprestimo    Emprestimo @relation(fields: [emprestimoId], references: [id])
-
-  @@index([emprestimoId])
-  @@index([dataDevolucao])
+enum EmprestimoStatus {
+  Ativo
+  Devolvido
+  Atrasado
 }
 
+// Tabela: item_emprestimo
+model ItemEmprestimo {
+  item_emprestimo_id        Int @id @default(autoincrement())
+  emprestimo_id             Int
+  exemplar_id               Int
+  item_emprestimo_quantidade Int @default(1)
+
+  emprestimo Emprestimo @relation(fields: [emprestimo_id], references: [emprestimo_id])
+
+  @@map("item_emprestimo")
+}
+
+// Tabela: multa
 model Multa {
-  id             Int       @id @default(autoincrement())
-  emprestimoId   Int       @unique
-  valor          Float
-  diasAtraso     Int       @default(0)
-  motivo         String    // ATRASO | DANO_LIVRO
-  status         String    @default("PENDENTE") // PENDENTE | PAGO | CANCELADO
-  formaPagamento String?
-  pagoEm         DateTime?
-  criadaEm       DateTime  @default(now())
+  multa_id             Int         @id @default(autoincrement())
+  multa_valor          Decimal     @db.Decimal(10, 2)
+  multa_status         MultaStatus
+  multa_data_geracao   DateTime
+  multa_data_pagamento DateTime?   @db.Date
 
-  emprestimo     Emprestimo @relation(fields: [emprestimoId], references: [id])
+  devolucao Devolucao?
 
-  @@index([emprestimoId])
-  @@index([status])
-  @@index([status, criadaEm])
+  @@map("multa")
+}
+
+enum MultaStatus {
+  Pendente
+  Paga
+  Cancelada
+}
+
+// Tabela: devolucao
+model Devolucao {
+  devolucao_id             Int       @id @default(autoincrement())
+  emprestimo_id            Int       @unique
+  devolucao_data_devolucao DateTime?
+  devolucao_atraso_dias    Int       @default(0)
+  devolucao_possui_multa   Int       @default(0)
+  devolucao_status         Int?
+  multa_id                 Int       @unique
+
+  emprestimo Emprestimo @relation(fields: [emprestimo_id], references: [emprestimo_id])
+  multa      Multa      @relation(fields: [multa_id], references: [multa_id])
+
+  @@map("devolucao")
 }

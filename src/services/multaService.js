@@ -4,8 +4,7 @@ async function listar({ page = 1, limit = 20 }) {
   const [total, data] = await Promise.all([
     prisma.multa.count(),
     prisma.multa.findMany({
-      include: { emprestimo: true },
-      orderBy: { criadaEm: 'desc' },
+      orderBy: { multa_data_geracao: 'desc' },
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit),
     }),
@@ -15,8 +14,7 @@ async function listar({ page = 1, limit = 20 }) {
 
 async function buscarPorId(id) {
   const multa = await prisma.multa.findUnique({
-    where: { id: Number(id) },
-    include: { emprestimo: true },
+    where: { multa_id: Number(id) },
   });
   if (!multa) {
     const err = new Error('Multa não encontrada.');
@@ -27,29 +25,13 @@ async function buscarPorId(id) {
   return multa;
 }
 
-async function buscarPorUsuario(usuarioId, { page = 1, limit = 20 }) {
-  const where = { emprestimo: { usuarioId: Number(usuarioId) } };
-  const [total, data] = await Promise.all([
-    prisma.multa.count({ where }),
-    prisma.multa.findMany({
-      where,
-      include: { emprestimo: true },
-      orderBy: { criadaEm: 'desc' },
-      skip: (Number(page) - 1) * Number(limit),
-      take: Number(limit),
-    }),
-  ]);
-  return { data, meta: { total, page: Number(page), limit: Number(limit) } };
-}
-
 async function listarPendentes({ page = 1, limit = 20 }) {
-  const where = { status: 'PENDENTE' };
+  const where = { multa_status: 'Pendente' };
   const [total, data] = await Promise.all([
     prisma.multa.count({ where }),
     prisma.multa.findMany({
       where,
-      include: { emprestimo: true },
-      orderBy: { criadaEm: 'desc' },
+      orderBy: { multa_data_geracao: 'desc' },
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit),
     }),
@@ -57,68 +39,68 @@ async function listarPendentes({ page = 1, limit = 20 }) {
   return { data, meta: { total, page: Number(page), limit: Number(limit) } };
 }
 
-async function criar({ emprestimoId, valor, motivo, diasAtraso = 0 }) {
-  if (!emprestimoId || !valor || !motivo) {
-    const err = new Error('emprestimoId, valor e motivo são obrigatórios.');
+/**
+ * Cria uma multa avulsa (não vinculada a devolução automática).
+ * Body: { valor }
+ */
+async function criar({ valor }) {
+  if (!valor) {
+    const err = new Error('valor é obrigatório.');
     err.statusCode = 400;
     err.code = 'DADOS_INVALIDOS';
     throw err;
   }
   return prisma.multa.create({
     data: {
-      emprestimoId: Number(emprestimoId),
-      valor:        Number(valor),
-      motivo,
-      diasAtraso:   Number(diasAtraso),
-      status:       'PENDENTE',
+      multa_valor:        Number(valor),
+      multa_status:       'Pendente',
+      multa_data_geracao: new Date(),
     },
   });
 }
 
-async function atualizar(id, { valor, motivo, status }) {
+async function atualizar(id, { valor, status }) {
   await buscarPorId(id);
   return prisma.multa.update({
-    where: { id: Number(id) },
+    where: { multa_id: Number(id) },
     data: {
-      valor:  valor  !== undefined ? Number(valor) : undefined,
-      motivo: motivo ?? undefined,
-      status: status ?? undefined,
+      multa_valor:  valor  !== undefined ? Number(valor) : undefined,
+      multa_status: status ?? undefined,
     },
   });
 }
 
-async function pagar(id, { formaPagamento, dataPagamento }) {
+async function pagar(id, { dataPagamento }) {
   const multa = await buscarPorId(id);
-  if (multa.status === 'PAGO') {
+  if (multa.multa_status === 'Paga') {
     const err = new Error('Esta multa já foi paga.');
     err.statusCode = 409;
     err.code = 'MULTA_JA_PAGA';
     throw err;
   }
   return prisma.multa.update({
-    where: { id: Number(id) },
+    where: { multa_id: Number(id) },
     data: {
-      status:         'PAGO',
-      formaPagamento: formaPagamento ?? undefined,
-      pagoEm:         dataPagamento ? new Date(dataPagamento) : new Date(),
+      multa_status:         'Paga',
+      multa_data_pagamento: dataPagamento ? new Date(dataPagamento) : new Date(),
     },
   });
 }
 
 async function cancelar(id) {
   const multa = await buscarPorId(id);
-  if (multa.status === 'CANCELADO') {
+  if (multa.multa_status === 'Cancelada') {
     const err = new Error('Esta multa já está cancelada.');
     err.statusCode = 409;
     err.code = 'MULTA_JA_CANCELADA';
     throw err;
   }
-  return prisma.multa.update({ where: { id: Number(id) }, data: { status: 'CANCELADO' } });
+  return prisma.multa.update({ where: { multa_id: Number(id) }, data: { multa_status: 'Cancelada' } });
 }
 
 async function deletar(id) {
   await buscarPorId(id);
-  return prisma.multa.delete({ where: { id: Number(id) } });
+  return prisma.multa.delete({ where: { multa_id: Number(id) } });
 }
 
-module.exports = { listar, buscarPorId, buscarPorUsuario, listarPendentes, criar, atualizar, pagar, cancelar, deletar };
+module.exports = { listar, buscarPorId, listarPendentes, criar, atualizar, pagar, cancelar, deletar };
