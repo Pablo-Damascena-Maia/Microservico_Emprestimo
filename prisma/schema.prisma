@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,4 +5,58 @@ generator client {
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
+}
+
+model Emprestimo {
+  id           Int       @id @default(autoincrement())
+  usuarioId    Int
+  livroId      Int
+  exemplarId   Int
+  status       String    @default("ATIVO") // ATIVO | DEVOLVIDO | ATRASADO
+  dataPrazo    DateTime
+  dataCriacao  DateTime  @default(now())
+  atualizadoEm DateTime  @updatedAt
+
+  devolucao    Devolucao?
+  multa        Multa?
+
+  @@index([usuarioId])
+  @@index([livroId])
+  @@index([status])
+  @@index([status, dataPrazo])
+  @@index([dataCriacao])
+}
+
+model Devolucao {
+  id            Int       @id @default(autoincrement())
+  emprestimoId  Int       @unique
+  dataDevolucao DateTime
+  condicaoLivro String    // BOM | DANIFICADO | PERDIDO
+  confirmadoPor Int?
+  observacao    String?   @db.Text
+  confirmadoEm  DateTime?
+  criadaEm      DateTime  @default(now())
+
+  emprestimo    Emprestimo @relation(fields: [emprestimoId], references: [id])
+
+  @@index([emprestimoId])
+  @@index([dataDevolucao])
+}
+
+model Multa {
+  id             Int       @id @default(autoincrement())
+  emprestimoId   Int       @unique
+  valor          Float
+  diasAtraso     Int       @default(0)
+  motivo         String    // ATRASO | DANO_LIVRO
+  status         String    @default("PENDENTE") // PENDENTE | PAGO | CANCELADO
+  formaPagamento String?
+  pagoEm         DateTime?
+  criadaEm       DateTime  @default(now())
+
+  emprestimo     Emprestimo @relation(fields: [emprestimoId], references: [id])
+
+  @@index([emprestimoId])
+  @@index([status])
+  @@index([status, criadaEm])
 }

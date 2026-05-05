@@ -1,0 +1,15 @@
+const ctrl = require('../controllers/multaController');
+
+async function multaRoutes(fastify) {
+  fastify.get('/',                   ctrl.listar);
+  fastify.get('/pendentes',          ctrl.listarPendentes);
+  fastify.get('/usuario/:usuarioId', ctrl.buscarPorUsuario);
+  fastify.get('/:id',                ctrl.buscarPorId);
+  fastify.post('/',                  ctrl.criar);
+  fastify.put('/:id',                ctrl.atualizar);
+  fastify.patch('/:id/pagar',        ctrl.pagar);
+  fastify.patch('/:id/cancelar',     ctrl.cancelar);
+  fastify.delete('/:id',             ctrl.deletar);
+}
+
+module.exports = multaRoutes;
