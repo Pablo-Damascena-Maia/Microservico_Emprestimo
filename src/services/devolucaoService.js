@@ -1,5 +1,6 @@
 const prisma       = require('../utils/prisma');
 const { diffDays } = require('../utils/dateHelper');
+const { publish, EVENTS } = require('../config/rabbitmq');
 
 const VALOR_MULTA_DIA = Number(process.env.VALOR_MULTA_DIA) || 2.50;
 
@@ -23,9 +24,7 @@ async function buscarPorId(id) {
   });
   if (!devolucao) {
     const err = new Error('Devolução não encontrada.');
-    err.statusCode = 404;
-    err.code = 'DEVOLUCAO_NAO_ENCONTRADA';
-    throw err;
+    err.statusCode = 404; err.code = 'DEVOLUCAO_NAO_ENCONTRADA'; throw err;
   }
   return devolucao;
 }
@@ -37,60 +36,34 @@ async function buscarPorEmprestimo(emprestimoId) {
   });
   if (!devolucao) {
     const err = new Error('Nenhuma devolução encontrada para este empréstimo.');
-    err.statusCode = 404;
-    err.code = 'DEVOLUCAO_NAO_ENCONTRADA';
-    throw err;
+    err.statusCode = 404; err.code = 'DEVOLUCAO_NAO_ENCONTRADA'; throw err;
   }
   return devolucao;
 }
 
-/**
- * Registra uma devolução.
- * Body esperado: { emprestimoId, dataDevolucao? }
- *
- * Fluxo:
- *  1. Valida empréstimo.
- *  2. Calcula dias de atraso.
- *  3. Cria multa (sempre — se sem atraso, valor = 0 e status Cancelada).
- *  4. Cria devolucao com FK para a multa.
- *  5. Atualiza status do empréstimo para Devolvido (ou Atrasado se houve atraso).
- *
- * Obs.: a tabela devolucao exige multa_id NOT NULL, então criamos a multa
- * antes da devolucao, mesmo quando não há atraso (valor 0, status Cancelada).
- */
 async function registrar({ emprestimoId, dataDevolucao }) {
   if (!emprestimoId) {
     const err = new Error('emprestimoId é obrigatório.');
-    err.statusCode = 400;
-    err.code = 'DADOS_INVALIDOS';
-    throw err;
+    err.statusCode = 400; err.code = 'DADOS_INVALIDOS'; throw err;
   }
 
   return prisma.$transaction(async (tx) => {
-    const emp = await tx.emprestimo.findUnique({
-      where: { emprestimo_id: Number(emprestimoId) },
-    });
-
+    const emp = await tx.emprestimo.findUnique({ where: { emprestimo_id: Number(emprestimoId) } });
     if (!emp) {
       const err = new Error('Empréstimo não encontrado.');
-      err.statusCode = 404;
-      err.code = 'EMPRESTIMO_NAO_ENCONTRADO';
-      throw err;
+      err.statusCode = 404; err.code = 'EMPRESTIMO_NAO_ENCONTRADO'; throw err;
     }
     if (emp.emprestimo_status === 'Devolvido') {
       const err = new Error('Este empréstimo já foi devolvido.');
-      err.statusCode = 409;
-      err.code = 'EMPRESTIMO_JA_DEVOLVIDO';
-      throw err;
+      err.statusCode = 409; err.code = 'EMPRESTIMO_JA_DEVOLVIDO'; throw err;
     }
 
-    const dataDevDate = dataDevolucao ? new Date(dataDevolucao) : new Date();
-    const prazo       = emp.emprestimo_data_prevista_devolucao;
+    const dataDevDate  = dataDevolucao ? new Date(dataDevolucao) : new Date();
+    const prazo        = emp.emprestimo_data_prevista_devolucao;
     const houve_atraso = dataDevDate > prazo;
     const diasAtraso   = houve_atraso ? diffDays(dataDevDate, prazo) : 0;
     const valorMulta   = diasAtraso * VALOR_MULTA_DIA;
 
-    // Sempre cria a multa (FK obrigatória na tabela devolucao)
     const multa = await tx.multa.create({
       data: {
         multa_valor:        valorMulta,
@@ -99,25 +72,44 @@ async function registrar({ emprestimoId, dataDevolucao }) {
       },
     });
 
-    // Cria a devolucao com FK para multa
     const devolucao = await tx.devolucao.create({
       data: {
         emprestimo_id:           emp.emprestimo_id,
         devolucao_data_devolucao: dataDevDate,
         devolucao_atraso_dias:   diasAtraso,
         devolucao_possui_multa:  houve_atraso ? 1 : 0,
-        devolucao_status:        1, // 1 = registrado
+        devolucao_status:        1,
         multa_id:                multa.multa_id,
       },
     });
 
-    // Atualiza status do empréstimo
     await tx.emprestimo.update({
       where: { emprestimo_id: emp.emprestimo_id },
-      data: {
-        emprestimo_status: houve_atraso ? 'Atrasado' : 'Devolvido',
-      },
+      data: { emprestimo_status: houve_atraso ? 'Atrasado' : 'Devolvido' },
     });
+
+    // Publica eventos no RabbitMQ
+    await publish(EVENTS.DEVOLUCAO_REGISTRADA, {
+      devolucaoId:   devolucao.devolucao_id,
+      emprestimoId:  emp.emprestimo_id,
+      usuarioId:     emp.usuario_id,
+      diasAtraso,
+      possuiMulta:   houve_atraso,
+      multaId:       multa.multa_id,
+      valorMulta,
+      timestamp:     new Date().toISOString(),
+    });
+
+    if (houve_atraso) {
+      await publish(EVENTS.MULTA_CRIADA, {
+        multaId:      multa.multa_id,
+        emprestimoId: emp.emprestimo_id,
+        usuarioId:    emp.usuario_id,
+        valor:        valorMulta,
+        diasAtraso,
+        timestamp:    new Date().toISOString(),
+      });
+    }
 
     return { ...devolucao, multa };
   });

@@ -15,11 +15,6 @@ async function buscarPorUsuario(req, reply) {
   return reply.code(200).send({ success: true, ...result });
 }
 
-async function buscarPorLivro(req, reply) {
-  const result = await service.buscarPorLivro(req.params.livroId, req.query);
-  return reply.code(200).send({ success: true, ...result });
-}
-
 async function listarAtivos(req, reply) {
   const result = await service.listarAtivos(req.query);
   return reply.code(200).send({ success: true, ...result });
@@ -45,4 +40,4 @@ async function deletar(req, reply) {
   return reply.code(204).send();
 }
 
-module.exports = { listar, buscarPorId, buscarPorUsuario, buscarPorLivro, listarAtivos, listarAtrasados, criar, renovar, deletar };
+module.exports = { listar, buscarPorId, buscarPorUsuario, listarAtivos, listarAtrasados, criar, renovar, deletar };

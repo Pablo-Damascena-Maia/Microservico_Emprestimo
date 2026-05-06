@@ -5,7 +5,6 @@ async function emprestimoRoutes(fastify) {
   fastify.get('/ativos',             ctrl.listarAtivos);
   fastify.get('/atrasados',          ctrl.listarAtrasados);
   fastify.get('/usuario/:usuarioId', ctrl.buscarPorUsuario);
-  fastify.get('/livro/:livroId',     ctrl.buscarPorLivro);
   fastify.get('/:id',                ctrl.buscarPorId);
   fastify.post('/',                  ctrl.criar);
   fastify.patch('/:id/renovar',      ctrl.renovar);

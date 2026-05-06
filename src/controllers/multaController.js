@@ -10,11 +10,6 @@ async function buscarPorId(req, reply) {
   return reply.code(200).send({ success: true, data });
 }
 
-async function buscarPorUsuario(req, reply) {
-  const result = await service.buscarPorUsuario(req.params.usuarioId, req.query);
-  return reply.code(200).send({ success: true, ...result });
-}
-
 async function listarPendentes(req, reply) {
   const result = await service.listarPendentes(req.query);
   return reply.code(200).send({ success: true, ...result });
@@ -45,4 +40,4 @@ async function deletar(req, reply) {
   return reply.code(204).send();
 }
 
-module.exports = { listar, buscarPorId, buscarPorUsuario, listarPendentes, criar, atualizar, pagar, cancelar, deletar };
+module.exports = { listar, buscarPorId, listarPendentes, criar, atualizar, pagar, cancelar, deletar };
