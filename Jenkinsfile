@@ -48,7 +48,7 @@ pipeline {
             steps {
                 echo 'Verificando se o Fastify subiu corretamente...'
                 sleep 5
-                sh "curl -f http://localhost:emprestimos/health || echo 'Aguardando serviço...'"
+                sh "curl -f http://localhost:9500/health || echo 'Aguardando serviço...'"
             }
         }
     }
