@@ -2,58 +2,63 @@ pipeline {
     agent any
 
     environment {
-        // Define a URL do banco para os testes (ajuste conforme necessário)
-        DATABASE_URL = "mysql://20261_projint5_manha:senac@12938@edumysql.acesso.rj.senac.br:3306/20261_projint5_manha_biblioteca_emprestimo"
-        IMAGE_NAME = "pablodamascena/microservico-emprestimo-node"
+        // Nome da imagem Docker que será gerada
+        IMAGE_NAME = "pablo-damascena/microservico-emprestimo"
+        // No Jenkins, configure estas credenciais para o Docker Hub, se necessário
+        DOCKER_HUB_USER = "mysql://20261_projint5_manha:senac@12938@edumysql.acesso.rj.senac.br:3306/20261_projint5_manha_biblioteca_emprestimo" 
     }
 
     stages {
-        stage('Install Dependencies') {
+        stage('Setup & Install') {
             steps {
-                echo 'Instalando dependências do projeto...'
-                // Usa o 'ci' para garantir builds reproduzíveis
-                sh 'npm i' 
+                echo 'Instalando dependências...'
+                // O comando 'npm ci' é mais seguro para ambientes de CI/CD
+                sh 'npm ci'
             }
         }
 
-        stage('Prisma Setup') {
+        stage('Prisma Generate') {
             steps {
                 echo 'Gerando o Prisma Client...'
-                // Gera os tipos do Prisma para o TypeScript/Node
+                // Essencial para o Fastify conseguir importar o @prisma/client
                 sh 'npx prisma generate'
-                
-                // Opcional: Roda as migrações em ambiente de staging/teste
-                // sh 'npx prisma migrate deploy'
             }
         }
 
-        stage('Lint & Tests') {
+        stage('Lint & Security Scan') {
             steps {
-                echo 'Executando testes...'
-                // sh 'npm test' // Descomente quando tiver testes configurados
+                echo 'Verificando vulnerabilidades...'
+                sh 'npm audit fix --audit-level=high || true'
             }
         }
 
-        stage('Build') {
+        stage('Build Application') {
             steps {
-                echo 'Gerando build de produção...'
+                echo 'Compilando o projeto (Fastify/TypeScript)...'
+                // Executa o script de build definido no seu package.json
                 sh 'npm run build'
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Image') {
             steps {
                 script {
-                    echo 'Construindo imagem Docker...'
-                    sh "docker build -t ${IMAGE_NAME}:latest ."
+                    echo 'Construindo a imagem Docker...'
+                    // Build da imagem usando o commit ID como tag para rastreabilidade
+                    sh "docker build -t ${IMAGE_NAME}:latest -t ${IMAGE_NAME}:${env.BUILD_ID} ."
                 }
             }
         }
     }
 
     post {
+        success {
+            echo 'Pipeline finalizado com sucesso!'
+            // Aqui você poderia adicionar um comando para enviar para o Docker Hub
+            // sh "docker push ${IMAGE_NAME}:latest"
+        }
         failure {
-            echo 'O Pipeline falhou. Verifique se o banco de dados estava acessível para o Prisma.'
+            echo 'Ocorreu um erro no Pipeline. Verifique os logs de build.'
         }
     }
 }
