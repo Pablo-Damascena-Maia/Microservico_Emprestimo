@@ -1,59 +1,59 @@
 pipeline {
     agent any
 
-    // Define as ferramentas configuradas no seu Jenkins
-    tools {
-        maven 'Maven3' // Certifique-se que este nome existe no Global Tool Configuration
-        jdk 'Java17'
-    }
-
     environment {
-        // Variáveis de ambiente úteis
-        DOCKER_IMAGE = "pablodamascena/microservico-emprestimo"
+        // Define a URL do banco para os testes (ajuste conforme necessário)
+        DATABASE_URL = "mysql://20261_projint5_manha:senac@12938@edumysql.acesso.rj.senac.br:3306/20261_projint5_manha_biblioteca_emprestimo"
+        IMAGE_NAME = "pablodamascena/microservico-emprestimo-node"
     }
 
     stages {
-        stage('Preparar') {
+        stage('Install Dependencies') {
             steps {
-                echo 'Iniciando o build do Microserviço de Empréstimo...'
-                checkout scm
+                echo 'Instalando dependências do projeto...'
+                // Usa o 'ci' para garantir builds reproduzíveis
+                sh 'npm i' 
             }
         }
 
-        stage('Build & Testes') {
+        stage('Prisma Setup') {
             steps {
-                // Executa o Maven para compilar e testar
-                sh 'mvn clean package'
+                echo 'Gerando o Prisma Client...'
+                // Gera os tipos do Prisma para o TypeScript/Node
+                sh 'npx prisma generate'
+                
+                // Opcional: Roda as migrações em ambiente de staging/teste
+                // sh 'npx prisma migrate deploy'
             }
         }
 
-        stage('Arquivar Artefatos') {
+        stage('Lint & Tests') {
             steps {
-                // Guarda o arquivo .jar gerado para consulta posterior no Jenkins
-                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                echo 'Executando testes...'
+                // sh 'npm test' // Descomente quando tiver testes configurados
             }
         }
 
-        stage('Construir Imagem Docker') {
+        stage('Build') {
+            steps {
+                echo 'Gerando build de produção...'
+                sh 'npm run build'
+            }
+        }
+
+        stage('Docker Build') {
             steps {
                 script {
-                    // Cria a imagem Docker baseada no seu Dockerfile
-                    sh "docker build -t ${DOCKER_IMAGE}:${env.BUILD_ID} ."
+                    echo 'Construindo imagem Docker...'
+                    sh "docker build -t ${IMAGE_NAME}:latest ."
                 }
             }
         }
     }
 
     post {
-        always {
-            echo 'Limpando o ambiente de trabalho...'
-            deleteDir()
-        }
-        success {
-            echo 'Sucesso: O microserviço está pronto para o deploy!'
-        }
         failure {
-            echo 'Erro: Verifique os logs do console para depurar.'
+            echo 'O Pipeline falhou. Verifique se o banco de dados estava acessível para o Prisma.'
         }
     }
 }
