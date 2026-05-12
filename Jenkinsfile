@@ -2,8 +2,10 @@ pipeline {
     agent any
 
     environment {
+        // Nome da imagem e do container baseados no seu projeto
         IMAGE_NAME = "microservico-emprestimo"
         CONTAINER_NAME = "microservico-emprestimo-container"
+        // Porta que o seu Fastify utiliza
         APP_PORT = "9500"
     }
 
@@ -12,7 +14,7 @@ pipeline {
             steps {
                 script {
                     echo 'Limpando containers e imagens antigas...'
-                   
+                    // O "|| true" evita que o pipeline pare se o container não existir
                     sh "docker stop ${CONTAINER_NAME} || true"
                     sh "docker rm ${CONTAINER_NAME} || true"
                     sh "docker rmi ${IMAGE_NAME}:latest || true"
@@ -23,7 +25,7 @@ pipeline {
         stage('Install and Prisma Generate') {
             steps {
                 echo 'Preparando dependências e Prisma...'
-                
+                // Rodamos o install localmente para garantir que o build Docker tenha o contexto
                 sh 'npm install'
                 sh 'npx prisma generate'
             }
@@ -48,7 +50,7 @@ pipeline {
             steps {
                 echo 'Verificando se o Fastify subiu corretamente...'
                 sleep 5
-                sh "curl -f http://localhost:9500/health || echo 'Aguardando serviço...'"
+                sh "curl -f http://localhost:${APP_PORT}/health || echo 'Aguardando serviço...'"
             }
         }
     }
