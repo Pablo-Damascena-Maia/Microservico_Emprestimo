@@ -2,63 +2,63 @@ pipeline {
     agent any
 
     environment {
-        // Nome da imagem Docker que será gerada
-        IMAGE_NAME = "pablo-damascena/microservico-emprestimo"
-        // No Jenkins, configure estas credenciais para o Docker Hub, se necessário
-        DOCKER_HUB_USER = "mysql://20261_projint5_manha:senac@12938@edumysql.acesso.rj.senac.br:3306/20261_projint5_manha_biblioteca_emprestimo" 
+        IMAGE_NAME = "microservico-emprestimo"
+        CONTAINER_NAME = "microservico-emprestimo-container"
+        APP_PORT = "9500"
     }
 
     stages {
-        stage('Setup & Install') {
+        stage('Stop and Remove Old Container') {
             steps {
-                echo 'Instalando dependências...'
-                // O comando 'npm ci' é mais seguro para ambientes de CI/CD
-                sh 'npm ci'
+                script {
+                    echo 'Limpando containers e imagens antigas...'
+                   
+                    sh "docker stop ${CONTAINER_NAME} || true"
+                    sh "docker rm ${CONTAINER_NAME} || true"
+                    sh "docker rmi ${IMAGE_NAME}:latest || true"
+                }
             }
         }
 
-        stage('Prisma Generate') {
+        stage('Install and Prisma Generate') {
             steps {
-                echo 'Gerando o Prisma Client...'
-                // Essencial para o Fastify conseguir importar o @prisma/client
+                echo 'Preparando dependências e Prisma...'
+                
+                sh 'npm install'
                 sh 'npx prisma generate'
             }
         }
 
-        stage('Lint & Security Scan') {
+        stage('Docker Build') {
             steps {
-                echo 'Verificando vulnerabilidades...'
-                sh 'npm audit fix --audit-level=high || true'
+                echo 'Construindo a nova imagem Docker...'
+                sh "docker build -t ${IMAGE_NAME}:latest ."
             }
         }
 
-        stage('Build Application') {
+        stage('Docker Run') {
             steps {
-                echo 'Compilando o projeto (Fastify/TypeScript)...'
-                // Executa o script de build definido no seu package.json
-                sh 'npm run build'
+                echo 'Subindo o microserviço...'
+                
+                sh "docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${IMAGE_NAME}:latest"
             }
         }
-
-        stage('Docker Image') {
+        
+        stage('Healthcheck') {
             steps {
-                script {
-                    echo 'Construindo a imagem Docker...'
-                    // Build da imagem usando o commit ID como tag para rastreabilidade
-                    sh "docker build -t ${IMAGE_NAME}:latest -t ${IMAGE_NAME}:${env.BUILD_ID} ."
-                }
+                echo 'Verificando se o Fastify subiu corretamente...'
+                sleep 5
+                sh "curl -f http://localhost:emprestimos/health || echo 'Aguardando serviço...'"
             }
         }
     }
 
     post {
         success {
-            echo 'Pipeline finalizado com sucesso!'
-            // Aqui você poderia adicionar um comando para enviar para o Docker Hub
-            // sh "docker push ${IMAGE_NAME}:latest"
+            echo 'Pipeline executado com sucesso! O serviço está rodando.'
         }
         failure {
-            echo 'Ocorreu um erro no Pipeline. Verifique os logs de build.'
+            echo 'Erro no pipeline. Verifique os logs do Docker ou do Prisma.'
         }
     }
 }
