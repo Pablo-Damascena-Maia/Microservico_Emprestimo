@@ -1,41 +1,32 @@
 /**
  * src/config/infisical.js
- *
- * Carrega os secrets do Infisical e injeta no process.env
- * antes do servidor e do Prisma subirem.
- *
- * Variáveis injetadas pelo Jenkins no docker run:
- *   INFISICAL_TOKEN      — Service Token (st.xxx) — cadastrado no Jenkins Credentials
- *   INFISICAL_PROJECT_ID — e2ce3300-d12b-471d-8954-364aa184c184
- *   INFISICAL_ENV        — prod (slug do ambiente Production no Infisical)
  */
 
 const { InfisicalSDK } = require('@infisical/sdk');
 
-async function loadSecrets() {
-  const token     = process.env.INFISICAL_TOKEN;
-  const projectId = process.env.INFISICAL_PROJECT_ID || 'e2ce3300-d12b-471d-8954-364aa184c184';
-  const env       = process.env.INFISICAL_ENV || 'prod';
+const INFISICAL_TOKEN      = process.env.INFISICAL_TOKEN      || 'st.78331314-da2c-40d7-829c-64e1baa1a4a8.ce97554862d25689b83e5730d93756e7.5a84652d45eb8c9411c301ab944e9012';
+const INFISICAL_PROJECT_ID = process.env.INFISICAL_PROJECT_ID || 'e2ce3300-d12b-471d-8954-364aa184c184';
+const INFISICAL_ENV        = process.env.INFISICAL_ENV        || 'prod';
 
-  // Sem token = desenvolvimento local, usa .env normalmente
-  if (!token) {
-    console.log('[Infisical] INFISICAL_TOKEN não encontrado — usando variáveis locais (.env)');
+async function loadSecrets() {
+  if (!INFISICAL_TOKEN) {
+    console.log('[Infisical] Token não encontrado — usando variáveis locais (.env)');
     return;
   }
 
   try {
-    console.log(`[Infisical] Carregando secrets do projeto ${projectId}, ambiente: ${env}`);
+    console.log(`[Infisical] Carregando secrets do projeto ${INFISICAL_PROJECT_ID}, ambiente: ${INFISICAL_ENV}`);
 
     const client = new InfisicalSDK();
 
     await client.auth().universalAuth.login({
-      clientId:     token,
-      clientSecret: token,
+      clientId:     INFISICAL_TOKEN,
+      clientSecret: INFISICAL_TOKEN,
     });
 
     const { secrets } = await client.secrets().listSecrets({
-      projectId,
-      environment: env,
+      projectId:   INFISICAL_PROJECT_ID,
+      environment: INFISICAL_ENV,
       secretPath:  '/',
     });
 
@@ -50,7 +41,6 @@ async function loadSecrets() {
     console.log(`[Infisical] ${count} secret(s) carregado(s) com sucesso.`);
   } catch (err) {
     console.error('[Infisical] Erro ao carregar secrets:', err.message);
-    console.error('[Infisical] Verifique INFISICAL_TOKEN e INFISICAL_PROJECT_ID no Jenkins.');
     process.exit(1);
   }
 }

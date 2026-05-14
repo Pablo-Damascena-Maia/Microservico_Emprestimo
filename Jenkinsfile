@@ -2,11 +2,13 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME     = "microservico-emprestimo"
-        CONTAINER_NAME = "microservico-emprestimo-container"
-        APP_PORT       = "9500"
-        NETWORK_NAME   = "biblioteca-net"
+        IMAGE_NAME           = "microservico-emprestimo"
+        CONTAINER_NAME       = "microservico-emprestimo-container"
+        APP_PORT             = "9500"
+        NETWORK_NAME         = "biblioteca-net"
         INFISICAL_PROJECT_ID = "e2ce3300-d12b-471d-8954-364aa184c184"
+        INFISICAL_ENV        = "prod"
+        DATABASE_URL         = "mysql://20261_projint5_manha:senac%4012938@edumysql.acesso.rj.senac.br:3306/20261_projint5_manha_biblioteca_emprestimo"
     }
 
     stages {
@@ -26,10 +28,7 @@ pipeline {
             steps {
                 echo 'Preparando dependências e Prisma...'
                 sh 'npm install'
-                // Prisma precisa do DATABASE_URL em build time para gerar o client
-                withCredentials([string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL')]) {
-                    sh 'npx prisma generate'
-                }
+                sh 'npx prisma generate'
             }
         }
 
@@ -51,32 +50,20 @@ pipeline {
 
         stage('Docker Run') {
             steps {
-                echo 'Subindo o microserviço com secrets do Infisical...'
-
-                // Credenciais cadastradas em:
-                // Jenkins > Manage Jenkins > Credentials > Global
-                //   INFISICAL_TOKEN  → Secret text → st.78331314-...
-                //   DATABASE_URL     → Secret text → string de conexão do banco
-
-                withCredentials([
-                    string(credentialsId: 'INFISICAL_TOKEN', variable: 'INFISICAL_TOKEN'),
-                    string(credentialsId: 'DATABASE_URL',    variable: 'DATABASE_URL'),
-                ]) {
-                    sh """
-                        docker run -d \
-                          --name    ${CONTAINER_NAME} \
-                          --restart unless-stopped \
-                          --network ${NETWORK_NAME} \
-                          -p ${APP_PORT}:${APP_PORT} \
-                          -e INFISICAL_TOKEN=\$INFISICAL_TOKEN \
-                          -e INFISICAL_PROJECT_ID=${INFISICAL_PROJECT_ID} \
-                          -e INFISICAL_ENV=prod \
-                          -e DATABASE_URL=\$DATABASE_URL \
-                          -e PORT=${APP_PORT} \
-                          -e NODE_ENV=production \
-                          ${IMAGE_NAME}:latest
-                    """
-                }
+                echo 'Subindo o microserviço...'
+                sh """
+                    docker run -d \
+                      --name    ${CONTAINER_NAME} \
+                      --restart unless-stopped \
+                      --network ${NETWORK_NAME} \
+                      -p ${APP_PORT}:${APP_PORT} \
+                      -e INFISICAL_PROJECT_ID=${INFISICAL_PROJECT_ID} \
+                      -e INFISICAL_ENV=${INFISICAL_ENV} \
+                      -e DATABASE_URL=${DATABASE_URL} \
+                      -e PORT=${APP_PORT} \
+                      -e NODE_ENV=production \
+                      ${IMAGE_NAME}:latest
+                """
             }
         }
 
