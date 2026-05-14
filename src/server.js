@@ -1,17 +1,29 @@
+/**
+ * server.js
+ * Ordem de boot:
+ *  1. dotenv       (desenvolvimento local)
+ *  2. Infisical    (produção — sobrescreve o .env com os secrets do vault)
+ *  3. RabbitMQ     (conecta em background, não bloqueia)
+ *  4. Fastify      (sobe o servidor HTTP)
+ */
 require('dotenv').config();
 
+const { loadSecrets }      = require('./config/infisical');
 const buildApp             = require('./app');
 const { connect, close }   = require('./config/rabbitmq');
 
 const PORT = Number(process.env.PORT) || 9500;
 
 async function start() {
-  // 1. Inicia conexão com RabbitMQ (não bloqueia o start do server)
+  // 1. Carrega secrets do Infisical (em produção)
+  await loadSecrets();
+
+  // 2. Conecta ao RabbitMQ em background
   connect().catch((err) => {
-    console.error('[RabbitMQ] Erro inicial (o serviço vai tentar reconectar):', err.message);
+    console.error('[RabbitMQ] Erro inicial (tentará reconectar):', err.message);
   });
 
-  // 2. Sobe o servidor HTTP
+  // 3. Sobe o servidor HTTP
   const fastify = buildApp();
 
   try {
@@ -22,11 +34,11 @@ async function start() {
     process.exit(1);
   }
 
-  // 3. Graceful shutdown
+  // 4. Graceful shutdown
   const shutdown = async (signal) => {
     console.log(`[Server] ${signal} recebido. Encerrando...`);
     await fastify.close();
-    await close();          // fecha canal/conexão RabbitMQ
+    await close();
     process.exit(0);
   };
 

@@ -1,7 +1,7 @@
 const ctrl = require('../controllers/multaController');
 
 async function multaRoutes(fastify) {
-  fastify.get('/',            ctrl.listar); //multas
+  fastify.get('/',            ctrl.listar);//multas
   fastify.get('/pendentes',   ctrl.listarPendentes);
   fastify.get('/:id',         ctrl.buscarPorId);
   fastify.post('/',            ctrl.criar);

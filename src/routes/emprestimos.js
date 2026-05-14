@@ -1,7 +1,7 @@
 const ctrl = require('../controllers/emprestimoController');
 
 async function emprestimoRoutes(fastify) {
-  fastify.get('/',                   ctrl.listar); //emprestimos
+  fastify.get('/',                   ctrl.listar);//emprestimos
   fastify.get('/ativos',             ctrl.listarAtivos);
   fastify.get('/atrasados',          ctrl.listarAtrasados);
   fastify.get('/usuario/:usuarioId', ctrl.buscarPorUsuario);

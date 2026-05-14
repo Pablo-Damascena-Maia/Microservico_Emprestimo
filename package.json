@@ -15,7 +15,8 @@
     "fastify": "^4.27.0",
     "@fastify/sensible": "^5.6.0",
     "dotenv": "^16.4.5",
-    "amqplib": "^0.10.4"
+    "amqplib": "^0.10.4",
+    "@infisical/sdk": "^2.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0",
