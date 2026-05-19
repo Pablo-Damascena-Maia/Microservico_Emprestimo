@@ -1,10 +1,10 @@
 /**
  * server.js
  * Ordem de boot:
- *  1. dotenv       (desenvolvimento local)
- *  2. Infisical    (produção — sobrescreve o .env com os secrets do vault)
- *  3. RabbitMQ     (conecta em background, não bloqueia)
- *  4. Fastify      (sobe o servidor HTTP)
+ * 1. dotenv       (desenvolvimento local)
+ * 2. Infisical    (produção — sobrescreve o .env com os secrets do vault)
+ * 3. RabbitMQ     (conecta em background, não bloqueia)
+ * 4. Fastify      (sobe o servidor HTTP)
  */
 require('dotenv').config();
 
@@ -23,10 +23,11 @@ async function start() {
     console.error('[RabbitMQ] Erro inicial (tentará reconectar):', err.message);
   });
 
-  // 3. Sobe o servidor HTTP
+  // 3. Sobe o servidor HTTP (A rota /health já está aqui dentro do app.js!)
   const fastify = buildApp();
 
   try {
+    // AQUI ESTÁ A MÁGICA PARA O DOCKER: host: '0.0.0.0'
     await fastify.listen({ port: PORT, host: '0.0.0.0' });
     console.log(`[Server] Microsserviço de Empréstimos rodando na porta ${PORT}`);
   } catch (err) {
