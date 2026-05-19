@@ -1,13 +1,8 @@
 /**
  * src/config/infisical.js
  *
- * Carrega os secrets do Infisical e injeta no process.env
- * antes do servidor e do Prisma subirem.
- *
- * Variáveis necessárias (injetadas pelo Jenkinsfile no docker run):
- *   INFISICAL_TOKEN      — Service Token (st.xxx)
- *   INFISICAL_PROJECT_ID — e2ce3300-d12b-471d-8954-364aa184c184
- *   INFISICAL_ENV        — prod
+ * Carrega os secrets do Infisical usando Service Token (st.xxx)
+ * e injeta no process.env antes do servidor e do Prisma subirem.
  */
 
 const { InfisicalSDK } = require('@infisical/sdk');
@@ -17,21 +12,19 @@ const INFISICAL_PROJECT_ID = process.env.INFISICAL_PROJECT_ID || 'e2ce3300-d12b-
 const INFISICAL_ENV        = process.env.INFISICAL_ENV        || 'prod';
 
 async function loadSecrets() {
-  if (!INFISICAL_TOKEN) {
-    console.log('[Infisical] Token não encontrado — usando variáveis locais (.env)');
+  // Pula Infisical em desenvolvimento local
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[Infisical] NODE_ENV !== production — usando variáveis locais (.env)');
     return;
   }
 
   try {
-    console.log(`[Infisical] Carregando secrets — projeto: ${INFISICAL_PROJECT_ID}, ambiente: ${INFISICAL_ENV}`);
+    console.log(`[Infisical] Conectando... projeto: ${INFISICAL_PROJECT_ID} | ambiente: ${INFISICAL_ENV}`);
 
-    const client = new InfisicalSDK();
+    const client = new InfisicalSDK({ siteUrl: 'https://app.infisical.com' });
 
-    // API correta para @infisical/sdk v5
-    await client.auth().universalAuth.login({
-      clientId:     INFISICAL_TOKEN,
-      clientSecret: INFISICAL_TOKEN,
-    });
+    // Service Token usa serviceTokenAuth, NÃO universalAuth
+    await client.auth().serviceTokenAuth.login(INFISICAL_TOKEN);
 
     const { secrets } = await client.secrets().listSecrets({
       projectId:   INFISICAL_PROJECT_ID,
@@ -47,10 +40,9 @@ async function loadSecrets() {
       }
     }
 
-    console.log(`[Infisical] ${count} secret(s) carregado(s) com sucesso.`);
+    console.log(`[Infisical] ✅ ${count} secret(s) carregado(s).`);
   } catch (err) {
-    console.error('[Infisical] Erro ao carregar secrets:', err.message);
-    console.error('[Infisical] Verifique o INFISICAL_TOKEN e o INFISICAL_PROJECT_ID.');
+    console.error('[Infisical] ❌ Erro ao carregar secrets:', err.message);
     process.exit(1);
   }
 }

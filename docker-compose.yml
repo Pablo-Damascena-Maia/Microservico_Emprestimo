@@ -9,28 +9,22 @@ services:
     restart: unless-stopped
 
     ports:
-      - "9500:9500"        # Porta pública do microsserviço (mapeada no servidor)
+      - "9500:9500"
 
     environment:
-      PORT: 9500
-      NODE_ENV: production
+      PORT:        9500
+      NODE_ENV:    production
+      INFISICAL_ENV: prod
 
-      # ── Banco de dados ─────────────────────────────────────────────────────
-      # Configure no arquivo .env (nunca commitar credenciais)
+      # Banco de dados — vem do .env
       DATABASE_URL: ${DATABASE_URL}
 
-      # ── RabbitMQ (servidor externo da faculdade) ───────────────────────────
-      RABBITMQ_URL: ${RABBITMQ_URL}          # amqp://admin:adminadmin@academico3.rj.senac.br:5672
-      RABBITMQ_RECONNECT_DELAY: 5000         # ms entre tentativas de reconexão
+      # RabbitMQ — se não vier do .env, usa o padrão da faculdade
+      RABBITMQ_URL:             ${RABBITMQ_URL:-amqp://admin:adminadmin@academico3.rj.senac.br:5672}
+      RABBITMQ_RECONNECT_DELAY: ${RABBITMQ_RECONNECT_DELAY:-5000}
 
-      # ── Multa por dia de atraso ────────────────────────────────────────────
+      # Multa por dia de atraso
       VALOR_MULTA_DIA: ${VALOR_MULTA_DIA:-2.50}
-
-    # Garante que o container só sobe se o DB estiver acessível
-    # (útil quando o DB também estiver no compose; remova se for externo)
-    # depends_on:
-    #   db:
-    #     condition: service_healthy
 
     networks:
       - biblioteca-net
@@ -41,7 +35,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-# ─── Rede interna do projeto Biblioteca ───────────────────────────────────────
 networks:
   biblioteca-net:
     name: biblioteca-net
