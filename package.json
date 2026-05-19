@@ -16,10 +16,13 @@
     "@fastify/sensible": "^5.6.0",
     "dotenv": "^16.4.5",
     "amqplib": "^0.10.4",
-    "@infisical/sdk": "^2.0.0"
+    "@infisical/sdk": "^5.0.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.0",
     "prisma": "^5.13.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

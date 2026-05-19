@@ -2,11 +2,16 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME     = "microservico-emprestimo"
-        CONTAINER_NAME = "microservico-emprestimo-container"
-        APP_PORT       = "9500"
-        NETWORK_NAME   = "biblioteca-net"
+        IMAGE_NAME           = "microservico-emprestimo"
+        CONTAINER_NAME       = "microservico-emprestimo-container"
+        APP_PORT             = "9500"
+        NETWORK_NAME         = "biblioteca-net"
         INFISICAL_PROJECT_ID = "e2ce3300-d12b-471d-8954-364aa184c184"
+        INFISICAL_ENV        = "prod"
+        // Token do Infisical — autentica em runtime para buscar os demais secrets
+        INFISICAL_TOKEN      = "st.78331314-da2c-40d7-829c-64e1baa1a4a8.ce97554862d25689b83e5730d93756e7.5a84652d45eb8c9411c301ab944e9012"
+        // DATABASE_URL precisa estar disponível no build (prisma generate) e no runtime
+        DATABASE_URL         = "mysql://20261_projint5_manha:senac%4012938@edumysql.acesso.rj.senac.br:3306/20261_projint5_manha_biblioteca_emprestimo"
     }
 
     stages {
@@ -26,16 +31,14 @@ pipeline {
             steps {
                 echo 'Preparando dependências e Prisma...'
                 sh 'npm install'
-                // Prisma precisa do DATABASE_URL em build time para gerar o client
-                withCredentials([string(credentialsId: 'DATABASE_URL', variable: 'DATABASE_URL')]) {
-                    sh 'npx prisma generate'
-                }
+                // Passa DATABASE_URL explicitamente para garantir que o prisma generate funcione
+                sh "DATABASE_URL='${DATABASE_URL}' npx prisma generate"
             }
         }
 
         stage('Docker Build') {
             steps {
-                echo 'Construindo a nova imagem Docker...'
+                echo 'Construindo a nova imagem Docker com Node 22...'
                 sh "docker build -t ${IMAGE_NAME}:latest ."
             }
         }
@@ -51,32 +54,23 @@ pipeline {
 
         stage('Docker Run') {
             steps {
-                echo 'Subindo o microserviço com secrets do Infisical...'
-
-                // Credenciais cadastradas em:
-                // Jenkins > Manage Jenkins > Credentials > Global
-                //   INFISICAL_TOKEN  → Secret text → st.78331314-...
-                //   DATABASE_URL     → Secret text → string de conexão do banco
-
-                withCredentials([
-                    string(credentialsId: 'INFISICAL_TOKEN', variable: 'INFISICAL_TOKEN'),
-                    string(credentialsId: 'DATABASE_URL',    variable: 'DATABASE_URL'),
-                ]) {
-                    sh """
-                        docker run -d \
-                          --name    ${CONTAINER_NAME} \
-                          --restart unless-stopped \
-                          --network ${NETWORK_NAME} \
-                          -p ${APP_PORT}:${APP_PORT} \
-                          -e INFISICAL_TOKEN=\$INFISICAL_TOKEN \
-                          -e INFISICAL_PROJECT_ID=${INFISICAL_PROJECT_ID} \
-                          -e INFISICAL_ENV=prod \
-                          -e DATABASE_URL=\$DATABASE_URL \
-                          -e PORT=${APP_PORT} \
-                          -e NODE_ENV=production \
-                          ${IMAGE_NAME}:latest
-                    """
-                }
+                echo 'Subindo o microserviço...'
+                // Aspas simples no sh para evitar interpolação dupla do shell
+                // e preservar o %40 da senha do DATABASE_URL
+                sh '''
+                    docker run -d \
+                      --name    ''' + CONTAINER_NAME + ''' \
+                      --restart unless-stopped \
+                      --network ''' + NETWORK_NAME + ''' \
+                      -p ''' + APP_PORT + ''':''' + APP_PORT + ''' \
+                      -e INFISICAL_TOKEN="''' + INFISICAL_TOKEN + '''" \
+                      -e INFISICAL_PROJECT_ID="''' + INFISICAL_PROJECT_ID + '''" \
+                      -e INFISICAL_ENV="''' + INFISICAL_ENV + '''" \
+                      -e DATABASE_URL="''' + DATABASE_URL + '''" \
+                      -e PORT="''' + APP_PORT + '''" \
+                      -e NODE_ENV=production \
+                      ''' + IMAGE_NAME + ''':latest
+                '''
             }
         }
 
