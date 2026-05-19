@@ -2,29 +2,75 @@ pipeline {
     agent any
 
     environment {
-        // Variáveis seguras
-        INFISICAL_TOKEN      = "st.78331314-da2c-40d7-829c-64e1baa1a4a8.ce97554862d25689b83e5730d93756e7.5a84652d45eb8c9411c301ab944e9012"
-        DATABASE_URL         = "mysql://20261_projint5_manha:senac%4012938@edumysql.acesso.rj.senac.br:3306/20261_projint5_manha_biblioteca_emprestimo"
+        IMAGE_NAME           = "microservico-emprestimo"
+        CONTAINER_NAME       = "microservico-emprestimo-container"
         APP_PORT             = "9500"
+        NETWORK_NAME         = "biblioteca-net"
+        INFISICAL_PROJECT_ID = "e2ce3300-d12b-471d-8954-364aa184c184"
+        INFISICAL_ENV        = "prod"
+        // Token do Infisical — autentica em runtime para buscar os demais secrets
+        INFISICAL_TOKEN      = "st.78331314-da2c-40d7-829c-64e1baa1a4a8.ce97554862d25689b83e5730d93756e7.5a84652d45eb8c9411c301ab944e9012"
+        // DATABASE_URL precisa estar disponível no build (prisma generate) e no runtime
+        DATABASE_URL         = "mysql://20261_projint5_manha:senac%4012938@edumysql.acesso.rj.senac.br:3306/20261_projint5_manha_biblioteca_emprestimo"
     }
 
     stages {
-        stage('Deploy com Docker Compose') {
+
+        stage('Stop and Remove Old Container') {
             steps {
                 script {
-                    echo 'Criando arquivo .env temporário para o Docker Compose...'
-                    // Injeta as credenciais no .env para o Compose e Prisma lerem
-                    sh """
-                        echo "INFISICAL_TOKEN=${INFISICAL_TOKEN}" > .env
-                        echo "DATABASE_URL=${DATABASE_URL}" >> .env
-                    """
-                    
-                    echo 'Construindo e subindo o microsserviço...'
-                    sh "docker compose up -d --build"
-                    
-                    echo 'Limpando credenciais locais por segurança...'
-                    sh "rm .env || true"
+                    echo 'Limpando containers e imagens antigas...'
+                    sh "docker stop ${CONTAINER_NAME} || true"
+                    sh "docker rm   ${CONTAINER_NAME} || true"
+                    sh "docker rmi  ${IMAGE_NAME}:latest || true"
                 }
+            }
+        }
+
+        stage('Install and Prisma Generate') {
+            steps {
+                echo 'Preparando dependências e Prisma...'
+                sh 'npm install'
+                // Passa DATABASE_URL explicitamente para garantir que o prisma generate funcione
+                sh "DATABASE_URL='${DATABASE_URL}' npx prisma generate"
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                echo 'Construindo a nova imagem Docker com Node 22...'
+                sh "docker build -t ${IMAGE_NAME}:latest ."
+            }
+        }
+
+        stage('Create Network') {
+            steps {
+                script {
+                    echo 'Garantindo rede Docker biblioteca-net...'
+                    sh "docker network create ${NETWORK_NAME} || true"
+                }
+            }
+        }
+
+        stage('Docker Run') {
+            steps {
+                echo 'Subindo o microserviço...'
+                // Aspas simples no sh para evitar interpolação dupla do shell
+                // e preservar o %40 da senha do DATABASE_URL
+                sh '''
+                    docker run -d \
+                      --name    ''' + CONTAINER_NAME + ''' \
+                      --restart unless-stopped \
+                      --network ''' + NETWORK_NAME + ''' \
+                      -p ''' + APP_PORT + ''':''' + APP_PORT + ''' \
+                      -e INFISICAL_TOKEN="''' + INFISICAL_TOKEN + '''" \
+                      -e INFISICAL_PROJECT_ID="''' + INFISICAL_PROJECT_ID + '''" \
+                      -e INFISICAL_ENV="''' + INFISICAL_ENV + '''" \
+                      -e DATABASE_URL="''' + DATABASE_URL + '''" \
+                      -e PORT="''' + APP_PORT + '''" \
+                      -e NODE_ENV=production \
+                      ''' + IMAGE_NAME + ''':latest
+                '''
             }
         }
 
@@ -43,7 +89,7 @@ pipeline {
         }
         failure {
             echo 'Erro no pipeline. Verificando logs...'
-            sh "docker logs biblioteca-emprestimo || true"
+            sh "docker logs ${CONTAINER_NAME} || true"
         }
     }
 }
