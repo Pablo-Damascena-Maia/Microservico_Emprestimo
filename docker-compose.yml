@@ -19,12 +19,17 @@ services:
       # Banco de dados — vem do .env
       DATABASE_URL: ${DATABASE_URL}
 
-      # RabbitMQ — se não vier do .env, usa o padrão da faculdade
+      # RabbitMQ
       RABBITMQ_URL:             ${RABBITMQ_URL:-amqp://admin:adminadmin@academico3.rj.senac.br:5672}
       RABBITMQ_RECONNECT_DELAY: ${RABBITMQ_RECONNECT_DELAY:-5000}
 
       # Multa por dia de atraso
       VALOR_MULTA_DIA: ${VALOR_MULTA_DIA:-2.50}
+
+      # URL do microsserviço de Catálogo
+      # Em Docker Compose, usa o nome do container do Catálogo na mesma rede.
+      # Se rodarem em máquinas separadas, troque pelo IP/hostname real.
+      CATALOGO_URL: ${CATALOGO_URL:-http://biblioteca-catalogo:9502}
 
     networks:
       - biblioteca-net
