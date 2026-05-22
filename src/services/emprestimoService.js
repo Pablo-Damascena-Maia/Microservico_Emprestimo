@@ -11,6 +11,7 @@ const prisma      = require('../utils/prisma');
 const { addDays } = require('../utils/dateHelper');
 const { publish, EVENTS } = require('../config/rabbitmq');
 const catalogo    = require('../config/catalogoClient');
+const usuario     = require('../config/usuarioClient');
 
 async function listar({ status, page = 1, limit = 20, orderBy = 'emprestimo_data_emprestimo' }) {
   const where = {};
@@ -112,15 +113,19 @@ async function criar({ usuarioId, livroId, exemplarId, diasPrazo = 14 }) {
     throw err;
   }
 
-  // ── 1. Valida se o livro existe e está ativo no Catálogo ─────────────────
+  // ── 1. Valida se o usuário existe e está ativo no microsserviço de Usuário ─
+  const usuarioData = await usuario.buscarUsuario(usuarioId);
+  console.log(`[Emprestimo] Usuário validado: "${usuarioData.usuario_nome}" (ID: ${usuarioId}, status: ${usuarioData.usuario_status})`);
+
+  // ── 2. Valida se o livro existe e está ativo no Catálogo ─────────────────
   const livro = await catalogo.buscarLivro(livroId);
   console.log(`[Emprestimo] Livro validado no Catálogo: "${livro.titulo || livro.livro_titulo}" (ID: ${livroId})`);
 
-  // ── 2. Valida se o exemplar existe e está disponível no Catálogo ──────────
+  // ── 3. Valida se o exemplar existe e está disponível no Catálogo ──────────
   const exemplar = await catalogo.buscarExemplar(exemplarId);
   console.log(`[Emprestimo] Exemplar validado no Catálogo: ${exemplar.codigoBarras || exemplar.exemplar_codigo_barras} (ID: ${exemplarId})`);
 
-  // ── 3. Verifica se o exemplar já tem empréstimo ativo aqui no banco ───────
+  // ── 4. Verifica se o exemplar já tem empréstimo ativo aqui no banco ───────
   const ativo = await prisma.itemEmprestimo.findFirst({
     where: {
       exemplar_id: Number(exemplarId),
@@ -135,7 +140,7 @@ async function criar({ usuarioId, livroId, exemplarId, diasPrazo = 14 }) {
     throw err;
   }
 
-  // ── 4. Cria o empréstimo ──────────────────────────────────────────────────
+  // ── 5. Cria o empréstimo ──────────────────────────────────────────────────
   const hoje  = new Date();
   const prazo = addDays(hoje, diasPrazo);
 
@@ -155,12 +160,12 @@ async function criar({ usuarioId, livroId, exemplarId, diasPrazo = 14 }) {
     include: { itens: true },
   });
 
-  // ── 5. Notifica o Catálogo para marcar o exemplar como "Emprestado" ───────
+  // ── 6. Notifica o Catálogo para marcar o exemplar como "Emprestado" ───────
   // Chamada HTTP direta (síncrona mas com falha silenciosa).
   // O evento RabbitMQ abaixo serve de fallback caso o HTTP falhe.
   await catalogo.marcarExemplarComoEmprestado(exemplarId);
 
-  // ── 6. Publica evento no RabbitMQ (para outros microsserviços) ────────────
+  // ── 7. Publica evento no RabbitMQ (para outros microsserviços) ────────────
   await publish(EVENTS.EMPRESTIMO_CRIADO, {
     emprestimoId: emprestimo.emprestimo_id,
     usuarioId:    Number(usuarioId),
