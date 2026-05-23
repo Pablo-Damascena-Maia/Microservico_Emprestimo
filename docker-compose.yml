@@ -27,9 +27,13 @@ services:
       VALOR_MULTA_DIA: ${VALOR_MULTA_DIA:-2.50}
 
       # URL do microsserviço de Catálogo
-      # Em Docker Compose, usa o nome do container do Catálogo na mesma rede.
-      # Se rodarem em máquinas separadas, troque pelo IP/hostname real.
       CATALOGO_URL: ${CATALOGO_URL:-http://biblioteca-catalogo:9502}
+
+      # URL do microsserviço de Usuário
+      USUARIO_URL: ${USUARIO_URL:-http://biblioteca-usuario:9501}
+
+      # URL do microsserviço de Reserva (integração)
+      RESERVA_URL: ${RESERVA_URL:-http://microsservico_reserva:9503}
 
     networks:
       - biblioteca-net
