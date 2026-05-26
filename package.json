@@ -11,12 +11,13 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
-    "@prisma/client": "^5.13.0",
-    "fastify": "^4.27.0",
+    "@fastify/cors": "^8.5.0",
     "@fastify/sensible": "^5.6.0",
-    "dotenv": "^16.4.5",
+    "@infisical/sdk": "^5.0.2",
+    "@prisma/client": "^5.13.0",
     "amqplib": "^0.10.4",
-    "@infisical/sdk": "^5.0.2"
+    "dotenv": "^16.4.5",
+    "fastify": "^4.27.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.0",

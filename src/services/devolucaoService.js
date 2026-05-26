@@ -9,6 +9,7 @@ const prisma        = require('../utils/prisma');
 const { diffDays }  = require('../utils/dateHelper');
 const { publish, EVENTS } = require('../config/rabbitmq');
 const catalogo      = require('../config/catalogoClient');
+const reserva       = require('../config/reservaClient');
 
 const VALOR_MULTA_DIA = Number(process.env.VALOR_MULTA_DIA) || 2.50;
 
@@ -130,12 +131,31 @@ async function registrar({ emprestimoId, dataDevolucao }) {
     await catalogo.marcarExemplarComoDisponivel(exemplarId);
   }
 
+  // ── 5b. Recupera o livroId via Catálogo para notificar fila de reservas ───
+  // O livroId não é armazenado no banco de empréstimos, apenas o exemplarId.
+  // Busca o livroId no Catálogo para incluir no evento e permitir que o
+  // microsserviço de Reserva identifique e notifique o próximo da fila.
+  let livroId = null;
+  if (exemplarId) {
+    try {
+      const exemplarData = await catalogo.buscarExemplar(exemplarId);
+      livroId = exemplarData?.livro_id ?? exemplarData?.livroId ?? null;
+      if (livroId) {
+        // Notifica diretamente via HTTP o próximo da fila de reservas
+        await reserva.notificarProximoDaFila(livroId, exemplarId);
+      }
+    } catch (err) {
+      console.warn('[Devolucao] Falha ao buscar livroId no Catálogo para notificar reservas:', err.message);
+    }
+  }
+
   // ── 6. Publica eventos no RabbitMQ ────────────────────────────────────────
   await publish(EVENTS.DEVOLUCAO_REGISTRADA, {
     devolucaoId:   devolucao.devolucao_id,
     emprestimoId:  emp.emprestimo_id,
     usuarioId:     emp.usuario_id,
     exemplarId:    exemplarId || null,
+    livroId:       livroId || null,
     diasAtraso,
     possuiMulta:   houve_atraso,
     multaId:       multa.multa_id,

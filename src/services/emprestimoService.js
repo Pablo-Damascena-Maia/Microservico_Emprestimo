@@ -12,6 +12,7 @@ const { addDays } = require('../utils/dateHelper');
 const { publish, EVENTS } = require('../config/rabbitmq');
 const catalogo    = require('../config/catalogoClient');
 const usuario     = require('../config/usuarioClient');
+const reserva     = require('../config/reservaClient');
 
 async function listar({ status, page = 1, limit = 20, orderBy = 'emprestimo_data_emprestimo' }) {
   const where = {};
@@ -140,6 +141,25 @@ async function criar({ usuarioId, livroId, exemplarId, diasPrazo = 14 }) {
     throw err;
   }
 
+  // ── 4b. Verifica reservas ativas para este livro no microsserviço de Reserva ─
+  // Se o próprio usuário tem reserva ativa: permite e cancela ao final.
+  // Se outro usuário tem reserva e o solicitante não tem: bloqueia para respeitar a fila.
+  const reservaDoUsuario = await reserva.buscarReservaAtivaDoUsuario(usuarioId, livroId);
+
+  if (!reservaDoUsuario) {
+    // Usuário não tem reserva — verifica se há fila de outros usuários
+    const fila = await reserva.buscarFilaReservasLivro(livroId);
+    if (fila && fila.length > 0) {
+      const err = new Error(
+        `Existe(m) ${fila.length} reserva(s) ativa(s) para este livro. ` +
+        'O empréstimo direto não é permitido — realize uma reserva primeiro.'
+      );
+      err.statusCode = 409;
+      err.code = 'LIVRO_COM_RESERVAS_ATIVAS';
+      throw err;
+    }
+  }
+
   // ── 5. Cria o empréstimo ──────────────────────────────────────────────────
   const hoje  = new Date();
   const prazo = addDays(hoje, diasPrazo);
@@ -164,6 +184,15 @@ async function criar({ usuarioId, livroId, exemplarId, diasPrazo = 14 }) {
   // Chamada HTTP direta (síncrona mas com falha silenciosa).
   // O evento RabbitMQ abaixo serve de fallback caso o HTTP falhe.
   await catalogo.marcarExemplarComoEmprestado(exemplarId);
+
+  // ── 6b. Cancela a reserva ativa do usuário para este livro (se existir) ───
+  if (reservaDoUsuario) {
+    await reserva.cancelarReserva(
+      reservaDoUsuario.reserva_id,
+      `Empréstimo ${emprestimo.emprestimo_id} criado`
+    );
+    console.log(`[Emprestimo] Reserva ${reservaDoUsuario.reserva_id} cancelada ao concretizar empréstimo.`);
+  }
 
   // ── 7. Publica evento no RabbitMQ (para outros microsserviços) ────────────
   await publish(EVENTS.EMPRESTIMO_CRIADO, {

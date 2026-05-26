@@ -1,30 +1,22 @@
-/**
- * server.js
- * Ordem de boot:
- *  1. dotenv       (desenvolvimento local)
- *  2. Infisical    (produção — sobrescreve o .env com os secrets do vault)
- *  3. RabbitMQ     (conecta em background, não bloqueia)
- *  4. Fastify      (sobe o servidor HTTP)
- */
 require('dotenv').config();
 
-const { loadSecrets }      = require('./config/infisical');
-const buildApp             = require('./app');
-const { connect, close }   = require('./config/rabbitmq');
+const { loadSecrets }    = require('./config/infisical');
+const buildApp           = require('./app');
+const { connect, close } = require('./config/rabbitmq');
 
 const PORT = Number(process.env.PORT) || 9500;
 
 async function start() {
-  // 1. Carrega secrets do Infisical (em produção)
+  // 1. Carrega secrets do Infisical (apenas em produção)
   await loadSecrets();
 
-  // 2. Conecta ao RabbitMQ em background
+  // 2. Conecta ao RabbitMQ em background (não bloqueia o boot)
   connect().catch((err) => {
     console.error('[RabbitMQ] Erro inicial (tentará reconectar):', err.message);
   });
 
-  // 3. Sobe o servidor HTTP
-  const fastify = buildApp();
+  // 3. Sobe o servidor HTTP — buildApp agora é async (por causa do await no CORS)
+  const fastify = await buildApp();
 
   try {
     await fastify.listen({ port: PORT, host: '0.0.0.0' });
