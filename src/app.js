@@ -1,29 +1,27 @@
+'use strict';
+ 
 const Fastify = require('fastify');
-const cors = require('@fastify/cors');
-
+const cors    = require('@fastify/cors');
+ 
 const emprestimoRoutes = require('./routes/emprestimos');
 const devolucaoRoutes  = require('./routes/devolucoes');
 const multaRoutes      = require('./routes/multas');
-
+ 
 async function buildApp(opts = {}) {
   const fastify = Fastify({ logger: true, ...opts });
-
-  // CORS deve ser registrado primeiro, com await, para garantir
-  // que os headers estejam presentes ANTES de qualquer rota ou erro
+ 
+  // 1. CORS com await — garante que o plugin está 100% ativo
+  //    antes de qualquer rota, handler de erro ou preflight OPTIONS
   await fastify.register(cors, {
-    origin: (origin, cb) => {
-      // Permite qualquer origem em desenvolvimento
-      // Em produção, substitua por: origin === 'https://seu-dominio.com'
-      cb(null, true);
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    origin: true,                        // aceita qualquer origem (dev)
+    methods: ['GET','POST','PUT','DELETE','PATCH','OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
-    preflight: true,          // responde ao OPTIONS automaticamente
-    strictPreflight: false,   // não rejeita preflight sem Origin
+    preflight: true,
+    strictPreflight: false,
   });
-
-  // Error handler global
+ 
+  // 2. Error handler
   fastify.setErrorHandler((err, req, reply) => {
     const status  = err.statusCode || 500;
     const code    = err.code       || 'ERRO_INTERNO';
@@ -31,8 +29,8 @@ async function buildApp(opts = {}) {
     fastify.log.error(err);
     return reply.status(status).send({ success: false, error: { code, message, status } });
   });
-
-  // 404 handler
+ 
+  // 3. 404 handler
   fastify.setNotFoundHandler((req, reply) => {
     return reply.status(404).send({
       success: false,
@@ -43,16 +41,16 @@ async function buildApp(opts = {}) {
       },
     });
   });
-
-  // Health check
+ 
+  // 4. Health check — usado pelo dashboard para verificar se o serviço está online
   fastify.get('/health', async () => ({ status: 'ok', servico: 'emprestimos' }));
-
-  // Rotas
+ 
+  // 5. Rotas de negócio
   fastify.register(emprestimoRoutes, { prefix: '/emprestimos' });
   fastify.register(devolucaoRoutes,  { prefix: '/devolucoes'  });
   fastify.register(multaRoutes,      { prefix: '/multas'      });
-
+ 
   return fastify;
 }
-
+ 
 module.exports = buildApp;
