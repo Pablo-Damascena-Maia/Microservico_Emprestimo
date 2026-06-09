@@ -7,11 +7,9 @@
 
 const amqplib = require('amqplib');
 
-// Fallback aponta para o servidor real da faculdade
-const RABBITMQ_URL       = process.env.RABBITMQ_URL || 'amqp://admin:adminadmin@10.136.38.50:5672';
-const RECONNECT_DELAY_MS = Number(process.env.RABBITMQ_RECONNECT_DELAY) || 5000;
-const EXCHANGE           = 'biblioteca';
-const EXCHANGE_TYPE      = 'topic';
+// Lidos dentro de connect() para garantir que o Infisical já carregou os secrets
+const EXCHANGE      = 'biblioteca';
+const EXCHANGE_TYPE = 'topic';
 
 let connection = null;
 let channel    = null;
@@ -20,6 +18,9 @@ let connecting = false;
 async function connect() {
   if (connecting) return;
   connecting = true;
+
+  const RABBITMQ_URL       = process.env.RABBITMQ_URL || 'amqp://admin:adminadmin@10.136.38.50:5672';
+  const RECONNECT_DELAY_MS = Number(process.env.RABBITMQ_RECONNECT_DELAY) || 5000;
 
   try {
     console.log('[RabbitMQ] Conectando em', RABBITMQ_URL.replace(/:\/\/.*@/, '://***@'));
