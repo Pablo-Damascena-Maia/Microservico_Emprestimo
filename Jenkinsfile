@@ -55,8 +55,6 @@ pipeline {
         stage('Docker Run') {
             steps {
                 echo 'Subindo o microserviço...'
-                // Aspas simples no sh para evitar interpolação dupla do shell
-                // e preservar o %40 da senha do DATABASE_URL
                 sh '''
                     docker run -d \
                       --name    ''' + CONTAINER_NAME + ''' \
@@ -69,6 +67,9 @@ pipeline {
                       -e DATABASE_URL="''' + DATABASE_URL + '''" \
                       -e PORT="''' + APP_PORT + '''" \
                       -e NODE_ENV=production \
+                      -e USUARIO_URL="http://academico3.rj.senac.br/20261prj5/biblioteca/usuario" \
+                      -e CATALOGO_URL="http://academico3.rj.senac.br/20261prj5/biblioteca/catalogo" \
+                      -e RESERVA_URL="http://academico3.rj.senac.br/20261prj5/biblioteca/reserva" \
                       ''' + IMAGE_NAME + ''':latest
                 '''
             }
