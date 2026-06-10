@@ -6,17 +6,16 @@
  *
  * Usuário roda na porta 9501.
  * Endpoints consultados:
- *   GET /biblioteca/usuarios/:id
+ *   GET /usuarios/:id
  */
-
-const USUARIO_URL = process.env.USUARIO_URL || 'http://localhost:9501';
 
 /**
  * Busca um usuário pelo ID no microsserviço de Usuário.
  * Retorna os dados do usuário ou lança erro se não encontrado/inativo.
  */
 async function buscarUsuario(usuarioId) {
-  const url = `${USUARIO_URL}/biblioteca/usuarios/${usuarioId}`;
+  const USUARIO_URL = process.env.USUARIO_URL || 'http://localhost:9501';
+  const url = `${USUARIO_URL}/usuarios/${usuarioId}`;
 
   let res;
   try {
