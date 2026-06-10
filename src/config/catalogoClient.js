@@ -18,7 +18,7 @@
  */
 async function buscarLivro(livroId) {
   const CATALOGO_URL = process.env.CATALOGO_URL || 'http://localhost:9502';
-  const url = `${CATALOGO_URL}/catalogo/livros/${livroId}`;
+  const url = `${CATALOGO_URL}/livros/${livroId}`;
 
   let res;
   try {
@@ -46,8 +46,8 @@ async function buscarLivro(livroId) {
 
   const livro = await res.json();
 
-  // Verifica se o livro está ativo (status = 1)
-  if (livro.status !== 1 && livro.status !== undefined) {
+  // Verifica se o livro está ativo (livro_status = 1)
+  if (livro.livro_status !== undefined && livro.livro_status !== 1) {
     const error = new Error(`Livro com ID ${livroId} está inativo no Catálogo e não pode ser emprestado.`);
     error.statusCode = 422;
     error.code = 'LIVRO_INATIVO';
@@ -63,7 +63,7 @@ async function buscarLivro(livroId) {
  */
 async function buscarExemplar(exemplarId) {
   const CATALOGO_URL = process.env.CATALOGO_URL || 'http://localhost:9502';
-  const url = `${CATALOGO_URL}/catalogo/exemplares/${exemplarId}`;
+  const url = `${CATALOGO_URL}/exemplares/${exemplarId}`;
 
   let res;
   try {
@@ -92,9 +92,9 @@ async function buscarExemplar(exemplarId) {
   const exemplar = await res.json();
 
   // Verifica se o exemplar está disponível para empréstimo
-  if (exemplar.disponibilidade && exemplar.disponibilidade !== 'Disponivel') {
+  if (exemplar.exemplar_status && exemplar.exemplar_status !== 'Disponivel') {
     const error = new Error(
-      `Exemplar com ID ${exemplarId} não está disponível (status: ${exemplar.disponibilidade}).`
+      `Exemplar com ID ${exemplarId} não está disponível (status: ${exemplar.exemplar_status}).`
     );
     error.statusCode = 409;
     error.code = 'EXEMPLAR_NAO_DISPONIVEL';
@@ -112,13 +112,13 @@ async function buscarExemplar(exemplarId) {
  */
 async function marcarExemplarComoEmprestado(exemplarId) {
   const CATALOGO_URL = process.env.CATALOGO_URL || 'http://localhost:9502';
-  const url = `${CATALOGO_URL}/catalogo/exemplares/${exemplarId}/status`;
+  const url = `${CATALOGO_URL}/exemplares/${exemplarId}/status`;
 
   try {
     const res = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ disponibilidade: 'Emprestado' }),
+      body: JSON.stringify({ exemplar_status: 'Emprestado' }),
     });
 
     if (!res.ok) {
@@ -141,13 +141,13 @@ async function marcarExemplarComoEmprestado(exemplarId) {
  */
 async function marcarExemplarComoDisponivel(exemplarId) {
   const CATALOGO_URL = process.env.CATALOGO_URL || 'http://localhost:9502';
-  const url = `${CATALOGO_URL}/catalogo/exemplares/${exemplarId}/status`;
+  const url = `${CATALOGO_URL}/exemplares/${exemplarId}/status`;
 
   try {
     const res = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ disponibilidade: 'Disponivel' }),
+      body: JSON.stringify({ exemplar_status: 'Disponivel' }),
     });
 
     if (!res.ok) {
