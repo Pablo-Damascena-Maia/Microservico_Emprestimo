@@ -5,20 +5,21 @@
  *
  * Microsserviço de Reserva roda na porta 9503.
  * Endpoints utilizados:
- *   POST /biblioteca/reserva/validar-conflito   → verifica se há reserva ativa para usuário+livro
- *   GET  /biblioteca/reserva/livro/listar-fila/:livro_id → fila de reservas do livro
- *   GET  /biblioteca/reserva/usuario/listar/:usuario_id  → reservas do usuário
- *   PATCH /biblioteca/reserva/atualizar-status/:id       → cancela reserva ao criar empréstimo
+ *   POST /reserva/validar-conflito   → verifica se há reserva ativa para usuário+livro
+ *   GET  /reserva/livro/listar-fila/:livro_id → fila de reservas do livro
+ *   GET  /reserva/usuario/listar/:usuario_id  → reservas do usuário
+ *   PATCH /reserva/atualizar-status/:id       → cancela reserva ao criar empréstimo
  */
 
-const RESERVA_URL = process.env.RESERVA_URL || 'http://localhost:9503';
+
 
 /**
  * Verifica se há reserva ativa do usuário para o livro informado.
  * Retorna { conflito: boolean, count: number, reserva_id?: number }
  */
 async function verificarReservaAtiva(usuarioId, livroId) {
-  const url = `${RESERVA_URL}/biblioteca/reserva/validar-conflito`;
+  const RESERVA_URL = process.env.RESERVA_URL || 'http://localhost:9503';
+  const url = `${RESERVA_URL}/reserva/validar-conflito`;
 
   let res;
   try {
@@ -47,7 +48,8 @@ async function verificarReservaAtiva(usuarioId, livroId) {
  * Retorna o objeto da reserva ou null.
  */
 async function buscarReservaAtivaDoUsuario(usuarioId, livroId) {
-  const url = `${RESERVA_URL}/biblioteca/reserva/usuario/listar/${usuarioId}`;
+  const RESERVA_URL = process.env.RESERVA_URL || 'http://localhost:9503';
+  const url = `${RESERVA_URL}/reserva/usuario/listar/${usuarioId}`;
 
   let res;
   try {
@@ -75,7 +77,8 @@ async function buscarReservaAtivaDoUsuario(usuarioId, livroId) {
  * Falha silenciosa — o empréstimo não é bloqueado se a reserva não puder ser cancelada.
  */
 async function cancelarReserva(reservaId, motivo = 'Empréstimo realizado') {
-  const url = `${RESERVA_URL}/biblioteca/reserva/atualizar-status/${reservaId}`;
+  const RESERVA_URL = process.env.RESERVA_URL || 'http://localhost:9503';
+  const url = `${RESERVA_URL}/reserva/atualizar-status/${reservaId}`;
 
   try {
     const res = await fetch(url, {
@@ -100,7 +103,8 @@ async function cancelarReserva(reservaId, motivo = 'Empréstimo realizado') {
  * Retorna array de reservas ordenadas por data de criação (mais antigas primeiro).
  */
 async function buscarFilaReservasLivro(livroId) {
-  const url = `${RESERVA_URL}/biblioteca/reserva/livro/listar-fila/${livroId}`;
+  const RESERVA_URL = process.env.RESERVA_URL || 'http://localhost:9503';
+  const url = `${RESERVA_URL}/reserva/livro/listar-fila/${livroId}`;
 
   let res;
   try {
@@ -130,7 +134,8 @@ async function notificarProximoDaFila(livroId, exemplarId) {
   }
 
   const proxima = fila[0];
-  const url = `${RESERVA_URL}/biblioteca/reserva/registrar-notificacao/${proxima.reserva_id}`;
+  const RESERVA_URL = process.env.RESERVA_URL || 'http://localhost:9503';
+  const url = `${RESERVA_URL}/reserva/registrar-notificacao/${proxima.reserva_id}`;
 
   try {
     const res = await fetch(url, {

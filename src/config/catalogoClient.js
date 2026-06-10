@@ -6,18 +6,19 @@
  *
  * Catálogo roda na porta 9502.
  * Endpoints consultados:
- *   GET /biblioteca/catalogo/livros/:id
- *   GET /biblioteca/catalogo/exemplares/:id
+ *   GET /catalogo/livros/:id
+ *   GET /catalogo/exemplares/:id
  */
 
-const CATALOGO_URL = process.env.CATALOGO_URL || 'http://localhost:9502';
+
 
 /**
  * Busca um livro pelo ID no microsserviço de Catálogo.
  * Retorna os dados do livro ou lança erro se não encontrado/indisponível.
  */
 async function buscarLivro(livroId) {
-  const url = `${CATALOGO_URL}/biblioteca/catalogo/livros/${livroId}`;
+  const CATALOGO_URL = process.env.CATALOGO_URL || 'http://localhost:9502';
+  const url = `${CATALOGO_URL}/catalogo/livros/${livroId}`;
 
   let res;
   try {
@@ -61,7 +62,8 @@ async function buscarLivro(livroId) {
  * Retorna os dados do exemplar ou lança erro se não encontrado/indisponível.
  */
 async function buscarExemplar(exemplarId) {
-  const url = `${CATALOGO_URL}/biblioteca/catalogo/exemplares/${exemplarId}`;
+  const CATALOGO_URL = process.env.CATALOGO_URL || 'http://localhost:9502';
+  const url = `${CATALOGO_URL}/catalogo/exemplares/${exemplarId}`;
 
   let res;
   try {
@@ -109,7 +111,8 @@ async function buscarExemplar(exemplarId) {
  * também emite o evento biblioteca.emprestimo.criado para o Catálogo reagir.
  */
 async function marcarExemplarComoEmprestado(exemplarId) {
-  const url = `${CATALOGO_URL}/biblioteca/catalogo/exemplares/${exemplarId}/status`;
+  const CATALOGO_URL = process.env.CATALOGO_URL || 'http://localhost:9502';
+  const url = `${CATALOGO_URL}/catalogo/exemplares/${exemplarId}/status`;
 
   try {
     const res = await fetch(url, {
@@ -137,7 +140,8 @@ async function marcarExemplarComoEmprestado(exemplarId) {
  * Também falha silenciosa — o evento RabbitMQ serve como fallback.
  */
 async function marcarExemplarComoDisponivel(exemplarId) {
-  const url = `${CATALOGO_URL}/biblioteca/catalogo/exemplares/${exemplarId}/status`;
+  const CATALOGO_URL = process.env.CATALOGO_URL || 'http://localhost:9502';
+  const url = `${CATALOGO_URL}/catalogo/exemplares/${exemplarId}/status`;
 
   try {
     const res = await fetch(url, {
