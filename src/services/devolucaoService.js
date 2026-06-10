@@ -86,9 +86,15 @@ async function registrar({ emprestimoId, dataDevolucao }) {
     }
 
     const dataDevDate  = dataDevolucao ? new Date(dataDevolucao) : new Date();
-    const prazo        = emp.emprestimo_data_prevista_devolucao;
-    const houve_atraso = dataDevDate > prazo;
-    const diasAtraso   = houve_atraso ? diffDays(dataDevDate, prazo) : 0;
+    const prazo        = new Date(emp.emprestimo_data_prevista_devolucao);
+
+    // Normaliza ambas as datas para meia-noite (ignora hora) para comparação justa
+    // já que emprestimo_data_prevista_devolucao é @db.Date (sem hora)
+    const prazoNorm    = new Date(prazo.getFullYear(), prazo.getMonth(), prazo.getDate());
+    const devNorm      = new Date(dataDevDate.getFullYear(), dataDevDate.getMonth(), dataDevDate.getDate());
+
+    const houve_atraso = devNorm > prazoNorm;
+    const diasAtraso   = houve_atraso ? diffDays(devNorm, prazoNorm) : 0;
     const valorMulta   = diasAtraso * VALOR_MULTA_DIA;
 
     // 2. Cria a multa (mesmo que seja zero/cancelada)
@@ -112,10 +118,11 @@ async function registrar({ emprestimoId, dataDevolucao }) {
       },
     });
 
-    // 4. Atualiza o status do empréstimo
+    // 4. Atualiza o status do empréstimo para Devolvido
+    // A multa já registra a penalidade — o empréstimo deve ser marcado como concluído
     await tx.emprestimo.update({
       where: { emprestimo_id: emp.emprestimo_id },
-      data: { emprestimo_status: houve_atraso ? 'Atrasado' : 'Devolvido' },
+      data: { emprestimo_status: 'Devolvido' },
     });
 
     return { devolucao, multa, emp, diasAtraso, houve_atraso, valorMulta };
