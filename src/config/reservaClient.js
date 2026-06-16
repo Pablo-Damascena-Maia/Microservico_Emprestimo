@@ -84,7 +84,13 @@ async function cancelarReserva(reservaId, motivo = 'Empréstimo realizado') {
     const res = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status_novo: 0, motivo }),
+      // O controller/service do microsserviço de Reserva espera o campo
+      // "reserva_status" (não "status_novo") na desestruturação do body:
+      //   async alterarStatus(id, { reserva_status, motivo }) { ... }
+      // Enviar "status_novo" causava reserva_status === undefined →
+      // ValidationError no service → HTTP 400 → o caller tratava como
+      // falha silenciosa mas o log mostrava o erro. Alinhado aqui.
+      body: JSON.stringify({ reserva_status: 0, motivo }),
     });
 
     if (!res.ok) {
