@@ -47,7 +47,7 @@ async function buscarLivro(livroId) {
   const livro = await res.json();
 
   // Verifica se o livro está ativo (livro_status = 1)
-  if (livro.livro_status !== undefined && livro.livro_status !== 1) {
+  if (livro.status !== undefined && livro.status !== 1) {
     const error = new Error(`Livro com ID ${livroId} está inativo no Catálogo e não pode ser emprestado.`);
     error.statusCode = 422;
     error.code = 'LIVRO_INATIVO';
@@ -92,9 +92,9 @@ async function buscarExemplar(exemplarId) {
   const exemplar = await res.json();
 
   // Verifica se o exemplar está disponível para empréstimo
-  if (exemplar.exemplar_status && exemplar.exemplar_status !== 'Disponivel') {
+  if (exemplar.disponibilidade && exemplar.disponibilidade !== 'Disponivel') {
     const error = new Error(
-      `Exemplar com ID ${exemplarId} não está disponível (status: ${exemplar.exemplar_status}).`
+      `Exemplar com ID ${exemplarId} não está disponível (status: ${exemplar.disponibilidade}).`
     );
     error.statusCode = 409;
     error.code = 'EXEMPLAR_NAO_DISPONIVEL';
@@ -118,7 +118,7 @@ async function marcarExemplarComoEmprestado(exemplarId) {
     const res = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exemplar_status: 'Emprestado' }),
+      body: JSON.stringify({ disponibilidade: 'Emprestado' }),
     });
 
     if (!res.ok) {
@@ -147,7 +147,7 @@ async function marcarExemplarComoDisponivel(exemplarId) {
     const res = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exemplar_status: 'Disponivel' }),
+      body: JSON.stringify({ disponibilidade: 'Disponivel' }),
     });
 
     if (!res.ok) {

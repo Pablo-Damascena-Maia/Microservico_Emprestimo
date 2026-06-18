@@ -68,7 +68,7 @@ async function buscarReservaAtivaDoUsuario(usuarioId, livroId) {
 
   // Filtra pela reserva ativa do livro específico (status 1 = ativo)
   return reservas.find(
-    (r) => Number(r.livro_id) === Number(livroId) && r.status === 1
+    (r) => Number(r.livro_id) === Number(livroId) && r.reserva_status === 1
   ) || null;
 }
 
