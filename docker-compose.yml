@@ -33,7 +33,7 @@ services:
       USUARIO_URL: ${USUARIO_URL:-http://biblioteca-usuario:9501}
 
       # URL do microsserviço de Reserva (integração)
-      RESERVA_URL: ${RESERVA_URL:-http://microsservico_reserva:9503}
+      RESERVA_URL: ${RESERVA_URL:-http://biblioteca-reserva:9503}
 
     networks:
       - biblioteca-net
